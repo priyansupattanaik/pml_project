@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HR Attrition Dashboard</title>
+  <style>
+    :root {
+      --ink: #1d252c;
+      --muted: #61717d;
+      --line: #d7e0e6;
+      --paper: #f4f7f7;
+      --panel: #ffffff;
+      --accent: #0f766e;
+      --accent-dark: #115e59;
+      --warn: #b45309;
+      --soft: #e8f3f0;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.55;
+    }
+    header {
+      background: linear-gradient(135deg, #113238, #0f766e);
+      color: white;
+      padding: 38px 7vw 30px;
+    }
+    header p { max-width: 900px; color: #d9efeb; margin: 8px 0 0; }
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: rgba(244, 247, 247, 0.96);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(8px);
+    }
+    nav .inner {
+      width: min(1220px, 94vw);
+      margin: 0 auto;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 10px 0;
+    }
+    nav a {
+      color: var(--accent-dark);
+      text-decoration: none;
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 999px;
+      padding: 7px 12px;
+      white-space: nowrap;
+      font-size: 0.92rem;
+    }
+    main { width: min(1220px, 94vw); margin: 0 auto; padding: 24px 0 54px; }
+    section { padding: 24px 0; border-bottom: 1px solid var(--line); }
+    h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.35rem); letter-spacing: 0; }
+    h2 { margin: 0 0 14px; font-size: 1.45rem; }
+    h3 { margin: 0 0 10px; font-size: 1.02rem; color: var(--accent-dark); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+    .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; }
+    .stat, .panel, .chart-card, .predictor {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(28, 48, 54, 0.06);
+    }
+    .stat { padding: 16px; }
+    .stat b { display: block; font-size: 1.55rem; color: var(--accent); }
+    .panel, .chart-card, .predictor { padding: 18px; }
+    .note { color: var(--muted); }
+    .chart-card canvas { width: 100%; height: 320px; display: block; }
+    .mini-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
+    .mini-controls button, button {
+      border: 0;
+      border-radius: 6px;
+      padding: 10px 13px;
+      background: var(--accent);
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .mini-controls button.secondary { background: #e8eeee; color: var(--ink); }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+    label { display: grid; gap: 5px; font-size: 0.9rem; font-weight: 700; }
+    input, select {
+      width: 100%;
+      border: 1px solid #b7c7ce;
+      border-radius: 6px;
+      padding: 9px 10px;
+      font: inherit;
+      background: white;
+    }
+    form button {
+      margin-top: 16px;
+    }
+    .result {
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 8px;
+      background: #eef7f4;
+      border: 1px solid #b9dad2;
+      font-size: 1rem;
+    }
+    .bar { margin-top: 10px; height: 14px; background: #d9e2e8; border-radius: 999px; overflow: hidden; }
+    .bar span { display: block; height: 100%; width: 0; background: var(--warn); transition: width .25s ease; }
+    .pill-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; list-style: none; }
+    .pill-list li { border: 1px solid var(--line); background: white; padding: 7px 10px; border-radius: 999px; }
+    .table-wrap { overflow-x: auto; background: white; border: 1px solid var(--line); border-radius: 8px; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+    .data-table th, .data-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; }
+    .data-table th { background: var(--soft); color: #12343b; }
+    code { background: #e8eeee; padding: 2px 5px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>HR Attrition Prediction</h1>
+    <p>Interactive one-page dashboard built from the provided CSV and notebook. It includes EDA charts, model comparison, feature importance, and browser-based prediction.</p>
+  </header>
+  <nav>
+    <div class="inner">
+      <a href="#predict">Predict</a>
+      <a href="#overview">Overview</a>
+      <a href="#eda">EDA Graphs</a>
+      <a href="#models">Models</a>
+      <a href="#features">Features</a>
+      <a href="#tables">Tables</a>
+    </div>
+  </nav>
+  <main>
+    <section id="predict">
+      <h2>Interactive Attrition Prediction</h2>
+      <div class="predictor">
+        <p class="note">The form uses the trained Logistic Regression parameters from the notebook, including label encoding and StandardScaler values.</p>
+        <form id="prediction-form">
+          <div class="form-grid" id="input-grid"></div>
+          <button type="submit">Predict Attrition</button>
+        </form>
+        <div class="result" id="prediction-result">Fill the employee details and click Predict Attrition.</div>
+        <div class="bar"><span id="probability-bar"></span></div>
+      </div>
+    </section>
+    <section id="overview">
+      <h2>Dataset Overview</h2>
+      <div class="grid">
+        <div class="stat"><b>1749</b>Rows in CSV</div>
+        <div class="stat"><b>35</b>Original columns</div>
+        <div class="stat"><b>97</b>Duplicate rows before cleaning</div>
+        <div class="stat"><b>26</b>Numeric columns</div>
+        <div class="stat"><b>9</b>Categorical columns</div>
+      </div>
+      <p class="note">Source files: <code>Imperfect_HR_Attrition (1) (1).csv</code> and <code>finalcodemlproject.ipynb</code>.</p>
+    </section>
+    <section id="eda">
+      <h2>EDA Graphs</h2>
+      <div class="two">
+        <div class="chart-card">
+          <h3>Main EDA Chart</h3>
+          <div class="mini-controls">
+            <button type="button" data-chart="target">Attrition</button>
+            <button type="button" class="secondary" data-chart="department">Department</button>
+            <button type="button" class="secondary" data-chart="jobRole">Job Role</button>
+            <button type="button" class="secondary" data-chart="missing">Missing Values</button>
+          </div>
+          <canvas id="eda-chart" width="920" height="430"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Attrition Relationships</h3>
+          <div class="mini-controls">
+            <button type="button" data-relation="overtimeAttrition">OverTime vs Attrition</button>
+            <button type="button" class="secondary" data-relation="ageAttrition">Age Group vs Attrition</button>
+            <button type="button" class="secondary" data-relation="incomeByAttrition">Income by Attrition</button>
+          </div>
+          <canvas id="relation-chart" width="920" height="430"></canvas>
+        </div>
+      </div>
+    </section>
+    <section id="models">
+      <h2>Model Evaluation Graphs</h2>
+      <div class="two">
+        <div class="chart-card">
+          <h3>Before SMOTE</h3>
+          <canvas id="before-chart" width="920" height="430"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>After SMOTE</h3>
+          <canvas id="after-chart" width="920" height="430"></canvas>
+        </div>
+      </div>
+      <p class="note">XGBoost is present in the notebook but skipped here if the package is not installed.</p>
+    </section>
+    <section id="features">
+      <h2>Top Random Forest Features</h2>
+      <div class="chart-card">
+        <canvas id="importance-chart" width="1100" height="430"></canvas>
+      </div>
+    </section>
+    <section id="tables">
+      <h2>Columns Used and Removed</h2>
+      <h3>Removed by notebook</h3>
+      <ul class="pill-list"><li>EmployeeCount</li><li>EmployeeNumber</li><li>Over18</li><li>StandardHours</li></ul>
+      <h3>Prediction features after preprocessing</h3>
+      <ul class="pill-list"><li>Age</li><li>BusinessTravel</li><li>DailyRate</li><li>Department</li><li>DistanceFromHome</li><li>Education</li><li>EducationField</li><li>EnvironmentSatisfaction</li><li>Gender</li><li>HourlyRate</li><li>JobInvolvement</li><li>JobLevel</li><li>JobRole</li><li>JobSatisfaction</li><li>MaritalStatus</li><li>MonthlyIncome</li><li>MonthlyRate</li><li>NumCompaniesWorked</li><li>OverTime</li><li>PercentSalaryHike</li><li>PerformanceRating</li><li>RelationshipSatisfaction</li><li>StockOptionLevel</li><li>TotalWorkingYears</li><li>TrainingTimesLastYear</li><li>WorkLifeBalance</li><li>YearsAtCompany</li><li>YearsInCurrentRole</li><li>YearsSinceLastPromotion</li><li>YearsWithCurrManager</li></ul>
+    </section>
+    <section>
+      <h2>EDA Tables</h2>
+      <div class="two">
+        <div>
+          <h3>Target Distribution</h3>
+          <div class="table-wrap"><table class="dataframe data-table">
+  <thead>
+    <tr style="text-align: left;">
+      <th>Attrition</th>
+      <th>Count</th>
+      <th>Percentage</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>No</td>
+      <td>1266</td>
+      <td>72.38%</td>
+    </tr>
+    <tr>
+      <td>Yes</td>
+      <td>483</td>
+      <td>27.62%</td>
+    </tr>
+  </tbody>
+</table></div>
+        </div>
+        <div>
+          <h3>Missing Values</h3>
+          <div class="table-wrap"><table class="dataframe data-table">
+  <thead>
+    <tr style="text-align: left;">
+      <th>Column</th>
+      <th>Missing Values</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>NumCompaniesWorked</td>
+      <td>157</td>
+    </tr>
+    <tr>
+      <td>RelationshipSatisfaction</td>
+      <td>142</td>
+    </tr>
+    <tr>
+      <td>JobSatisfaction</td>
+      <td>141</td>
+    </tr>
+    <tr>
+      <td>EnvironmentSatisfaction</td>
+      <td>135</td>
+    </tr>
+    <tr>
+      <td>WorkLifeBalance</td>
+      <td>130</td>
+    </tr>
+    <tr>
+      <td>TrainingTimesLastYear</td>
+      <td>127</td>
+    </tr>
+    <tr>
+      <td>DistanceFromHome</td>
+      <td>109</td>
+    </tr>
+    <tr>
+      <td>PercentSalaryHike</td>
+      <td>89</td>
+    </tr>
+    <tr>
+      <td>YearsWithCurrManager</td>
+      <td>83</td>
+    </tr>
+    <tr>
+      <td>Gender</td>
+      <td>69</td>
+    </tr>
+    <tr>
+      <td>MonthlyIncome</td>
+      <td>21</td>
+    </tr>
+    <tr>
+      <td>TotalWorkingYears</td>
+      <td>1</td>
+    </tr>
+  </tbody>
+</table></div>
+        </div>
+      </div>
+      <h2>EDA Numeric Summary</h2>
+      <div class="table-wrap"><table class="dataframe data-table">
+  <thead>
+    <tr style="text-align: left;">
+      <th>Column</th>
+      <th>count</th>
+      <th>mean</th>
+      <th>std</th>
+      <th>min</th>
+      <th>50%</th>
+      <th>max</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Age</td>
+      <td>1749.0</td>
+      <td>36.39</td>
+      <td>9.28</td>
+      <td>18.0</td>
+      <td>35.0</td>
+      <td>60.0</td>
+    </tr>
+    <tr>
+      <td>DailyRate</td>
+      <td>1749.0</td>
+      <td>802.42</td>
+      <td>404.68</td>
+      <td>102.0</td>
+      <td>798.0</td>
+      <td>1499.0</td>
+    </tr>
+    <tr>
+      <td>DistanceFromHome</td>
+      <td>1640.0</td>
+      <td>9.49</td>
+      <td>8.23</td>
+      <td>1.0</td>
+      <td>7.0</td>
+      <td>29.0</td>
+    </tr>
+    <tr>
+      <td>Education</td>
+      <td>1749.0</td>
+      <td>2.90</td>
+      <td>1.02</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>5.0</td>
+    </tr>
+    <tr>
+      <td>EmployeeCount</td>
+      <td>1749.0</td>
+      <td>1.00</td>
+      <td>0.00</td>
+      <td>1.0</td>
+      <td>1.0</td>
+      <td>1.0</td>
+    </tr>
+    <tr>
+      <td>EmployeeNumber</td>
+      <td>1749.0</td>
+      <td>1035.12</td>
+      <td>599.00</td>
+      <td>1.0</td>
+      <td>1043.0</td>
+      <td>2068.0</td>
+    </tr>
+    <tr>
+      <td>EnvironmentSatisfaction</td>
+      <td>1614.0</td>
+      <td>2.68</td>
+      <td>1.11</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>4.0</td>
+    </tr>
+    <tr>
+      <td>HourlyRate</td>
+      <td>1749.0</td>
+      <td>65.79</td>
+      <td>20.37</td>
+      <td>30.0</td>
+      <td>66.0</td>
+      <td>100.0</td>
+    </tr>
+    <tr>
+      <td>JobInvolvement</td>
+      <td>1749.0</td>
+      <td>2.69</td>
+      <td>0.73</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>4.0</td>
+    </tr>
+    <tr>
+      <td>JobLevel</td>
+      <td>1749.0</td>
+      <td>2.00</td>
+      <td>1.10</td>
+      <td>1.0</td>
+      <td>2.0</td>
+      <td>5.0</td>
+    </tr>
+    <tr>
+      <td>JobSatisfaction</td>
+      <td>1608.0</td>
+      <td>2.70</td>
+      <td>1.11</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>4.0</td>
+    </tr>
+    <tr>
+      <td>MonthlyIncome</td>
+      <td>1728.0</td>
+      <td>6442.21</td>
+      <td>5531.86</td>
+      <td>1009.0</td>
+      <td>4776.0</td>
+      <td>99800.0</td>
+    </tr>
+    <tr>
+      <td>MonthlyRate</td>
+      <td>1749.0</td>
+      <td>14244.24</td>
+      <td>7140.41</td>
+      <td>2094.0</td>
+      <td>14255.0</td>
+      <td>26999.0</td>
+    </tr>
+    <tr>
+      <td>NumCompaniesWorked</td>
+      <td>1592.0</td>
+      <td>2.76</td>
+      <td>2.56</td>
+      <td>0.0</td>
+      <td>2.0</td>
+      <td>9.0</td>
+    </tr>
+    <tr>
+      <td>PercentSalaryHike</td>
+      <td>1660.0</td>
+      <td>15.17</td>
+      <td>3.95</td>
+      <td>0.0</td>
+      <td>14.0</td>
+      <td>25.0</td>
+    </tr>
+    <tr>
+      <td>PerformanceRating</td>
+      <td>1749.0</td>
+      <td>3.16</td>
+      <td>0.37</td>
+      <td>3.0</td>
+      <td>3.0</td>
+      <td>4.0</td>
+    </tr>
+    <tr>
+      <td>RelationshipSatisfaction</td>
+      <td>1607.0</td>
+      <td>2.66</td>
+      <td>1.09</td>
+      <td>1.0</td>
+      <td>3.0</td>
+      <td>4.0</td>
+    </tr>
+    <tr>
+      <td>StandardHours</td>
+      <td>1749.0</td>
+      <td>80.00</td>
+      <td>0.00</td>
+      <td>80.0</td>
+      <td>80.0</td>
+      <td>80.0</td>
+    </tr>
+  </tbody>
+</table></div>
+      <p class="note">The notebook imputes numeric missing values with mean and categorical missing values with most frequent value.</p>
+    </section>
+    <section>
+      <h2>Model Evaluation Tables</h2>
+      <div class="two">
+        <div>
+          <h3>Before SMOTE</h3>
+          <div class="table-wrap"><table class="dataframe data-table">
+  <thead>
+    <tr style="text-align: left;">
+      <th>Model</th>
+      <th>Accuracy</th>
+      <th>Precision</th>
+      <th>Recall</th>
+      <th>F1 Score</th>
+      <th>ROC AUC</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Logistic Regression</td>
+      <td>0.8097</td>
+      <td>0.7297</td>
+      <td>0.5567</td>
+      <td>0.6316</td>
+      <td>0.7356</td>
+    </tr>
+    <tr>
+      <td>Random Forest</td>
+      <td>0.9215</td>
+      <td>0.9383</td>
+      <td>0.7835</td>
+      <td>0.8539</td>
+      <td>0.8811</td>
+    </tr>
+    <tr>
+      <td>CART Decision Tree</td>
+      <td>0.7946</td>
+      <td>0.7042</td>
+      <td>0.5155</td>
+      <td>0.5952</td>
+      <td>0.7129</td>
+    </tr>
+    <tr>
+      <td>KNN</td>
+      <td>0.7764</td>
+      <td>0.6825</td>
+      <td>0.4433</td>
+      <td>0.5375</td>
+      <td>0.6789</td>
+    </tr>
+  </tbody>
+</table></div>
+        </div>
+        <div>
+          <h3>After SMOTE</h3>
+          <div class="table-wrap"><table class="dataframe data-table">
+  <thead>
+    <tr style="text-align: left;">
+      <th>Model</th>
+      <th>Accuracy</th>
+      <th>Precision</th>
+      <th>Recall</th>
+      <th>F1 Score</th>
+      <th>ROC AUC</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>LR + SMOTE</td>
+      <td>0.7583</td>
+      <td>0.5620</td>
+      <td>0.7938</td>
+      <td>0.6581</td>
+      <td>0.7687</td>
+    </tr>
+    <tr>
+      <td>RF + SMOTE</td>
+      <td>0.9275</td>
+      <td>0.9294</td>
+      <td>0.8144</td>
+      <td>0.8681</td>
+      <td>0.8944</td>
+    </tr>
+    <tr>
+      <td>DT + SMOTE</td>
+      <td>0.7553</td>
+      <td>0.5645</td>
+      <td>0.7216</td>
+      <td>0.6335</td>
+      <td>0.7454</td>
+    </tr>
+    <tr>
+      <td>KNN + SMOTE</td>
+      <td>0.7372</td>
+      <td>0.5316</td>
+      <td>0.8660</td>
+      <td>0.6588</td>
+      <td>0.7749</td>
+    </tr>
+  </tbody>
+</table></div>
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2>Feature Importance Table</h2>
+      <div class="table-wrap"><table class="dataframe data-table">
+  <thead>
+    <tr style="text-align: left;">
+      <th>Feature</th>
+      <th>Importance</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>MonthlyIncome</td>
+      <td>0.0736</td>
+    </tr>
+    <tr>
+      <td>Age</td>
+      <td>0.0657</td>
+    </tr>
+    <tr>
+      <td>OverTime</td>
+      <td>0.0655</td>
+    </tr>
+    <tr>
+      <td>TotalWorkingYears</td>
+      <td>0.0532</td>
+    </tr>
+    <tr>
+      <td>DistanceFromHome</td>
+      <td>0.0522</td>
+    </tr>
+    <tr>
+      <td>DailyRate</td>
+      <td>0.0519</td>
+    </tr>
+    <tr>
+      <td>MonthlyRate</td>
+      <td>0.0484</td>
+    </tr>
+    <tr>
+      <td>HourlyRate</td>
+      <td>0.0464</td>
+    </tr>
+    <tr>
+      <td>YearsAtCompany</td>
+      <td>0.0425</td>
+    </tr>
+    <tr>
+      <td>EnvironmentSatisfaction</td>
+      <td>0.0332</td>
+    </tr>
+  </tbody>
+</table></div>
+    </section>
+  </main>
+  <script>
+    const model = {"features": [{"name": "Age", "type": "numeric", "min": 18.0, "max": 60.0, "default": 35.0, "step": 1}, {"name": "BusinessTravel", "type": "categorical", "classes": ["Non-Travel", "Travel_Frequently", "Travel_Rarely"], "default": "Travel_Rarely"}, {"name": "DailyRate", "type": "numeric", "min": 102.0, "max": 1499.0, "default": 798.0, "step": 1}, {"name": "Department", "type": "categorical", "classes": ["Human Resources", "Research & Development", "Sales"], "default": "Research & Development"}, {"name": "DistanceFromHome", "type": "numeric", "min": 1.0, "max": 29.0, "default": 7.0, "step": 1}, {"name": "Education", "type": "numeric", "min": 1.0, "max": 5.0, "default": 3.0, "step": 1}, {"name": "EducationField", "type": "categorical", "classes": ["Human Resources", "Life Sciences", "Marketing", "Medical", "Other", "Technical Degree"], "default": "Life Sciences"}, {"name": "EnvironmentSatisfaction", "type": "numeric", "min": 1.0, "max": 4.0, "default": 3.0, "step": 1}, {"name": "Gender", "type": "categorical", "classes": ["Female", "Male"], "default": "Male"}, {"name": "HourlyRate", "type": "numeric", "min": 30.0, "max": 100.0, "default": 66.0, "step": 1}, {"name": "JobInvolvement", "type": "numeric", "min": 1.0, "max": 4.0, "default": 3.0, "step": 1}, {"name": "JobLevel", "type": "numeric", "min": 1.0, "max": 5.0, "default": 2.0, "step": 1}, {"name": "JobRole", "type": "categorical", "classes": ["Healthcare Representative", "Human Resources", "Laboratory Technician", "Manager", "Manufacturing Director", "Research Director", "Research Scientist", "Sales Executive", "Sales Representative"], "default": "Sales Executive"}, {"name": "JobSatisfaction", "type": "numeric", "min": 1.0, "max": 4.0, "default": 3.0, "step": 1}, {"name": "MaritalStatus", "type": "categorical", "classes": ["Divorced", "Married", "Single"], "default": "Married"}, {"name": "MonthlyIncome", "type": "numeric", "min": 1009.0, "max": 99800.0, "default": 4776.0, "step": 1}, {"name": "MonthlyRate", "type": "numeric", "min": 2094.0, "max": 26999.0, "default": 14255.0, "step": 1}, {"name": "NumCompaniesWorked", "type": "numeric", "min": 0.0, "max": 9.0, "default": 2.0, "step": 1}, {"name": "OverTime", "type": "categorical", "classes": ["No", "Yes"], "default": "No"}, {"name": "PercentSalaryHike", "type": "numeric", "min": 0.0, "max": 25.0, "default": 14.0, "step": 1}, {"name": "PerformanceRating", "type": "numeric", "min": 3.0, "max": 4.0, "default": 3.0, "step": 1}, {"name": "RelationshipSatisfaction", "type": "numeric", "min": 1.0, "max": 4.0, "default": 3.0, "step": 1}, {"name": "StockOptionLevel", "type": "numeric", "min": 0.0, "max": 3.0, "default": 1.0, "step": 1}, {"name": "TotalWorkingYears", "type": "numeric", "min": 0.0, "max": 40.0, "default": 9.0, "step": 1}, {"name": "TrainingTimesLastYear", "type": "numeric", "min": 0.0, "max": 6.0, "default": 3.0, "step": 1}, {"name": "WorkLifeBalance", "type": "numeric", "min": 1.0, "max": 4.0, "default": 3.0, "step": 1}, {"name": "YearsAtCompany", "type": "numeric", "min": 0.0, "max": 40.0, "default": 5.0, "step": 1}, {"name": "YearsInCurrentRole", "type": "numeric", "min": 0.0, "max": 18.0, "default": 3.0, "step": 1}, {"name": "YearsSinceLastPromotion", "type": "numeric", "min": 0.0, "max": 15.0, "default": 1.0, "step": 1}, {"name": "YearsWithCurrManager", "type": "numeric", "min": 0.0, "max": 17.0, "default": 3.0, "step": 1}], "scalerMean": [36.77441332323997, 1.610900832702498, 798.118849356548, 1.2611657834973504, 9.302173425638877, 2.903860711582135, 2.20666161998486, 2.6939194128971455, 0.6124148372445117, 65.97501892505677, 2.711582134746404, 2.020439061317184, 4.461771385314156, 2.7176802364291937, 1.109008327024981, 6495.629247005389, 14197.242240726722, 2.7420870476658252, 0.3012869038607116, 15.17000121972233, 3.161241483724451, 2.688812448303659, 0.7872823618470856, 10.994700984102952, 2.787347885978084, 2.7380801965124215, 6.928084784254353, 4.099167297501893, 2.1869795609386826, 4.079499230212159], "scalerScale": [9.287598267710612, 0.6580331231979515, 401.2494040931721, 0.5270127810407719, 7.940382558403067, 1.0297579551307838, 1.3202497233971706, 1.056943022118568, 0.48719903978486034, 20.49154061210325, 0.7106376710918528, 1.097256969877299, 2.4698514384273937, 1.0598050724903292, 0.7373987059645652, 5560.767334443931, 7084.096981034471, 2.4301471200705245, 0.45881707185188514, 3.8300128787267536, 0.36775354199625143, 1.0296861727092255, 0.8636078853396173, 7.783061778546198, 1.2372477918494034, 0.688429199196153, 6.15533028208335, 3.5788944245485275, 3.1895476588880203, 3.4659476329327834], "coef": [-0.1855554153735639, 0.06912102686589787, -0.09293038363320773, 0.29754572241157007, 0.39610823634251746, 0.0761042304459862, -0.026174044317726405, -0.3549106230050738, 0.13804340271231272, -0.03987353398975781, -0.37208523115740394, -0.6311189443617159, -0.04627660999744726, -0.3552408284114006, 0.45293025704564704, -0.017631438279019963, 0.005769789459013491, 0.4462449451985591, 0.8423483482097851, -0.02319736400460284, -0.01951693330564681, -0.18792527749743548, -0.1640523737754099, -0.24422649322614073, -0.053656823569842166, -0.23482213714546626, 0.4917888165665584, -0.4925403325113049, 0.5289722407946146, -0.3936020505107125], "intercept": -1.8213453038750353, "targetClasses": ["No", "Yes"], "modelName": "Logistic Regression"};
+    const charts = {"target": [{"Attrition": "No", "Count": 1266, "Percentage": "72.38%"}, {"Attrition": "Yes", "Count": 483, "Percentage": "27.62%"}], "department": [{"Department": "Research & Development", "Count": 1102}, {"Department": "Sales", "Count": 567}, {"Department": "Human Resources", "Count": 80}], "jobRole": [{"Job Role": "Sales Executive", "Count": 402}, {"Job Role": "Research Scientist", "Count": 356}, {"Job Role": "Laboratory Technician", "Count": 309}, {"Job Role": "Manufacturing Director", "Count": 158}, {"Job Role": "Healthcare Representative", "Count": 141}, {"Job Role": "Sales Representative", "Count": 123}, {"Job Role": "Manager", "Count": 107}, {"Job Role": "Research Director", "Count": 84}], "overtimeAttrition": [{"OverTime": "No", "No": 970, "Yes": 217}, {"OverTime": "Yes", "No": 296, "Yes": 266}], "ageAttrition": [{"Age Group": "18-25", "No": 80, "Yes": 101}, {"Age Group": "26-35", "No": 495, "Yes": 237}, {"Age Group": "36-45", "No": 444, "Yes": 86}, {"Age Group": "46-55", "No": 207, "Yes": 43}, {"Age Group": "56-65", "No": 40, "Yes": 16}], "incomeByAttrition": [{"Attrition": "No", "Average Monthly Income": 7048.72}, {"Attrition": "Yes", "Average Monthly Income": 4842.31}], "missing": [{"Column": "NumCompaniesWorked", "Missing Values": 157}, {"Column": "RelationshipSatisfaction", "Missing Values": 142}, {"Column": "JobSatisfaction", "Missing Values": 141}, {"Column": "EnvironmentSatisfaction", "Missing Values": 135}, {"Column": "WorkLifeBalance", "Missing Values": 130}, {"Column": "TrainingTimesLastYear", "Missing Values": 127}, {"Column": "DistanceFromHome", "Missing Values": 109}, {"Column": "PercentSalaryHike", "Missing Values": 89}, {"Column": "YearsWithCurrManager", "Missing Values": 83}, {"Column": "Gender", "Missing Values": 69}, {"Column": "MonthlyIncome", "Missing Values": 21}, {"Column": "TotalWorkingYears", "Missing Values": 1}], "importance": [{"Feature": "MonthlyIncome", "Importance": 0.0736}, {"Feature": "Age", "Importance": 0.0657}, {"Feature": "OverTime", "Importance": 0.0655}, {"Feature": "TotalWorkingYears", "Importance": 0.0532}, {"Feature": "DistanceFromHome", "Importance": 0.0522}, {"Feature": "DailyRate", "Importance": 0.0519}, {"Feature": "MonthlyRate", "Importance": 0.0484}, {"Feature": "HourlyRate", "Importance": 0.0464}, {"Feature": "YearsAtCompany", "Importance": 0.0425}, {"Feature": "EnvironmentSatisfaction", "Importance": 0.0332}], "beforeMetrics": [{"Model": "Logistic Regression", "Accuracy": 0.8097, "Precision": 0.7297, "Recall": 0.5567, "F1 Score": 0.6316, "ROC AUC": 0.7356}, {"Model": "Random Forest", "Accuracy": 0.9215, "Precision": 0.9383, "Recall": 0.7835, "F1 Score": 0.8539, "ROC AUC": 0.8811}, {"Model": "CART Decision Tree", "Accuracy": 0.7946, "Precision": 0.7042, "Recall": 0.5155, "F1 Score": 0.5952, "ROC AUC": 0.7129}, {"Model": "KNN", "Accuracy": 0.7764, "Precision": 0.6825, "Recall": 0.4433, "F1 Score": 0.5375, "ROC AUC": 0.6789}], "afterMetrics": [{"Model": "LR + SMOTE", "Accuracy": 0.7583, "Precision": 0.562, "Recall": 0.7938, "F1 Score": 0.6581, "ROC AUC": 0.7687}, {"Model": "RF + SMOTE", "Accuracy": 0.9275, "Precision": 0.9294, "Recall": 0.8144, "F1 Score": 0.8681, "ROC AUC": 0.8944}, {"Model": "DT + SMOTE", "Accuracy": 0.7553, "Precision": 0.5645, "Recall": 0.7216, "F1 Score": 0.6335, "ROC AUC": 0.7454}, {"Model": "KNN + SMOTE", "Accuracy": 0.7372, "Precision": 0.5316, "Recall": 0.866, "F1 Score": 0.6588, "ROC AUC": 0.7749}]};
+    const grid = document.getElementById("input-grid");
+    const result = document.getElementById("prediction-result");
+    const probabilityBar = document.getElementById("probability-bar");
+
+    function fieldId(name) {
+      return "field-" + name.replace(/[^a-zA-Z0-9_-]/g, "-");
+    }
+
+    model.features.forEach((feature) => {
+      const label = document.createElement("label");
+      label.textContent = feature.name;
+      let input;
+      if (feature.type === "categorical") {
+        input = document.createElement("select");
+        feature.classes.forEach((className, index) => {
+          const option = document.createElement("option");
+          option.value = String(index);
+          option.textContent = className;
+          if (className === feature.default) option.selected = true;
+          input.appendChild(option);
+        });
+      } else {
+        input = document.createElement("input");
+        input.type = "number";
+        input.min = String(feature.min);
+        input.max = String(feature.max);
+        input.step = String(feature.step);
+        input.value = String(feature.default);
+      }
+      input.id = fieldId(feature.name);
+      input.name = feature.name;
+      label.appendChild(input);
+      grid.appendChild(label);
+    });
+
+    function sigmoid(value) {
+      return 1 / (1 + Math.exp(-value));
+    }
+
+    document.getElementById("prediction-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const values = model.features.map((feature) => {
+        const raw = document.getElementById(fieldId(feature.name)).value;
+        return Number(raw);
+      });
+      const scaled = values.map((value, index) => {
+        const scale = model.scalerScale[index] || 1;
+        return (value - model.scalerMean[index]) / scale;
+      });
+      const score = scaled.reduce((total, value, index) => total + value * model.coef[index], model.intercept);
+      const yesProbability = sigmoid(score);
+      const predictionIndex = yesProbability >= 0.5 ? 1 : 0;
+      const label = model.targetClasses[predictionIndex] || String(predictionIndex);
+      result.innerHTML = `<strong>Predicted Attrition:</strong> ${label}<br><strong>Estimated Yes probability:</strong> ${(yesProbability * 100).toFixed(2)}%<br><span class="note">Model used: ${model.modelName}</span>`;
+      probabilityBar.style.width = `${Math.max(0, Math.min(100, yesProbability * 100))}%`;
+    });
+
+    function resizeCanvas(canvas) {
+      const ratio = window.devicePixelRatio || 1;
+      const width = canvas.clientWidth || canvas.width;
+      const height = canvas.clientHeight || 320;
+      canvas.width = width * ratio;
+      canvas.height = height * ratio;
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      return { ctx, width, height };
+    }
+
+    function drawBar(canvasId, rows, labelKey, valueKey, title, color = "#0f766e") {
+      const canvas = document.getElementById(canvasId);
+      const { ctx, width, height } = resizeCanvas(canvas);
+      ctx.clearRect(0, 0, width, height);
+      const pad = { left: 64, right: 20, top: 34, bottom: 86 };
+      const values = rows.map(row => Number(row[valueKey]) || 0);
+      const maxValue = Math.max(...values, 1);
+      const chartW = width - pad.left - pad.right;
+      const chartH = height - pad.top - pad.bottom;
+      ctx.fillStyle = "#1d252c";
+      ctx.font = "700 15px Segoe UI, Arial";
+      ctx.fillText(title, pad.left, 20);
+      ctx.strokeStyle = "#d7e0e6";
+      ctx.beginPath();
+      ctx.moveTo(pad.left, pad.top);
+      ctx.lineTo(pad.left, pad.top + chartH);
+      ctx.lineTo(pad.left + chartW, pad.top + chartH);
+      ctx.stroke();
+      rows.forEach((row, index) => {
+        const gap = 10;
+        const barW = Math.max(18, (chartW / rows.length) - gap);
+        const x = pad.left + index * (chartW / rows.length) + gap / 2;
+        const barH = (Number(row[valueKey]) / maxValue) * chartH;
+        const y = pad.top + chartH - barH;
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, barW, barH);
+        ctx.fillStyle = "#1d252c";
+        ctx.font = "12px Segoe UI, Arial";
+        ctx.fillText(String(row[valueKey]), x, Math.max(y - 6, pad.top + 12));
+        ctx.save();
+        ctx.translate(x + 4, pad.top + chartH + 16);
+        ctx.rotate(-0.72);
+        ctx.fillText(String(row[labelKey]).slice(0, 20), 0, 0);
+        ctx.restore();
+      });
+    }
+
+    function drawGrouped(canvasId, rows, labelKey, keys, title) {
+      const canvas = document.getElementById(canvasId);
+      const { ctx, width, height } = resizeCanvas(canvas);
+      ctx.clearRect(0, 0, width, height);
+      const pad = { left: 64, right: 22, top: 42, bottom: 86 };
+      const colors = ["#0f766e", "#b45309", "#426b8c"];
+      const maxValue = Math.max(...rows.flatMap(row => keys.map(key => Number(row[key]) || 0)), 1);
+      const chartW = width - pad.left - pad.right;
+      const chartH = height - pad.top - pad.bottom;
+      ctx.fillStyle = "#1d252c";
+      ctx.font = "700 15px Segoe UI, Arial";
+      ctx.fillText(title, pad.left, 20);
+      keys.forEach((key, idx) => {
+        ctx.fillStyle = colors[idx % colors.length];
+        ctx.fillRect(pad.left + idx * 92, 28, 12, 12);
+        ctx.fillStyle = "#1d252c";
+        ctx.font = "12px Segoe UI, Arial";
+        ctx.fillText(key, pad.left + idx * 92 + 16, 39);
+      });
+      ctx.strokeStyle = "#d7e0e6";
+      ctx.beginPath();
+      ctx.moveTo(pad.left, pad.top);
+      ctx.lineTo(pad.left, pad.top + chartH);
+      ctx.lineTo(pad.left + chartW, pad.top + chartH);
+      ctx.stroke();
+      rows.forEach((row, index) => {
+        const groupW = chartW / rows.length;
+        const barW = Math.max(12, groupW / (keys.length + 1.5));
+        keys.forEach((key, keyIndex) => {
+          const value = Number(row[key]) || 0;
+          const barH = (value / maxValue) * chartH;
+          const x = pad.left + index * groupW + keyIndex * barW + 10;
+          const y = pad.top + chartH - barH;
+          ctx.fillStyle = colors[keyIndex % colors.length];
+          ctx.fillRect(x, y, barW, barH);
+        });
+        ctx.fillStyle = "#1d252c";
+        ctx.font = "12px Segoe UI, Arial";
+        ctx.save();
+        ctx.translate(pad.left + index * groupW + 10, pad.top + chartH + 16);
+        ctx.rotate(-0.72);
+        ctx.fillText(String(row[labelKey]).slice(0, 18), 0, 0);
+        ctx.restore();
+      });
+    }
+
+    function drawMetricChart(canvasId, rows, title) {
+      const metricRows = rows.map(row => ({ Label: row.Model, Value: Number(row["F1 Score"]) || 0 }));
+      drawBar(canvasId, metricRows, "Label", "Value", `${title} - F1 Score`, "#426b8c");
+    }
+
+    function setActive(buttons, activeButton) {
+      buttons.forEach(button => button.classList.add("secondary"));
+      activeButton.classList.remove("secondary");
+    }
+
+    document.querySelectorAll("[data-chart]").forEach(button => {
+      button.addEventListener("click", () => {
+        setActive(document.querySelectorAll("[data-chart]"), button);
+        const key = button.dataset.chart;
+        if (key === "target") drawBar("eda-chart", charts.target, "Attrition", "Count", "Target Attrition Distribution");
+        if (key === "department") drawBar("eda-chart", charts.department, "Department", "Count", "Employees by Department", "#426b8c");
+        if (key === "jobRole") drawBar("eda-chart", charts.jobRole, "Job Role", "Count", "Top Job Roles", "#b45309");
+        if (key === "missing") drawBar("eda-chart", charts.missing, "Column", "Missing Values", "Missing Values by Column", "#9f3a38");
+      });
+    });
+
+    document.querySelectorAll("[data-relation]").forEach(button => {
+      button.addEventListener("click", () => {
+        setActive(document.querySelectorAll("[data-relation]"), button);
+        const key = button.dataset.relation;
+        if (key === "overtimeAttrition") drawGrouped("relation-chart", charts.overtimeAttrition, "OverTime", ["No", "Yes"], "OverTime vs Attrition");
+        if (key === "ageAttrition") drawGrouped("relation-chart", charts.ageAttrition, "Age Group", ["No", "Yes"], "Age Group vs Attrition");
+        if (key === "incomeByAttrition") drawBar("relation-chart", charts.incomeByAttrition, "Attrition", "Average Monthly Income", "Average Monthly Income by Attrition", "#426b8c");
+      });
+    });
+
+    function drawAllCharts() {
+      drawBar("eda-chart", charts.target, "Attrition", "Count", "Target Attrition Distribution");
+      drawGrouped("relation-chart", charts.overtimeAttrition, "OverTime", ["No", "Yes"], "OverTime vs Attrition");
+      drawMetricChart("before-chart", charts.beforeMetrics, "Before SMOTE");
+      drawMetricChart("after-chart", charts.afterMetrics, "After SMOTE");
+      drawBar("importance-chart", charts.importance, "Feature", "Importance", "Top Random Forest Feature Importance", "#0f766e");
+    }
+
+    window.addEventListener("resize", drawAllCharts);
+    drawAllCharts();
+  </script>
+</body>
+</html>
